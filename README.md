@@ -21,8 +21,23 @@ Early-stage / learning project. Core flow and tool design are still being figure
 
 ## Tech stack
 
-_TBD_
+- Python
+- [FastAPI](https://fastapi.tiangolo.com/) for the service layer
+- [Uvicorn](https://www.uvicorn.org/) as the ASGI server
 
 ## Getting started
 
-_Coming soon — setup instructions will go here once the basic flow is working._
+```bash
+python -m venv venv
+source venv/bin/activate   # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Once running, check the service is up:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+This currently just scaffolds the FastAPI app with a `/health` endpoint — the MCP tools and GitHub issue-fetching logic described above are still to come.
