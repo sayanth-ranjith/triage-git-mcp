@@ -15,14 +15,22 @@ reason about priority and next steps without a tab switch.
 
 ## Where we are right now
 
-Early-stage / learning project. There is no MCP server yet — what exists is a
-bare FastAPI scaffold:
+Early-stage / learning project. Iteration 1 (bare-bones MCP plumbing) is
+done:
 
-- `main.py` — a FastAPI app with a single `/health` endpoint
-- `requirements.txt` — `fastapi`, `uvicorn[standard]`
+- `main.py` — a FastAPI app with a single `/health` endpoint. Untouched by
+  MCP work — runs as a separate process, at least for now.
+- `mcp_server.py` — a minimal MCP server (`mcp.server.mcpserver.MCPServer`)
+  with one tool, `echo`, over stdio transport. Verified two ways: a scripted
+  stdio client (initialize → list_tools → call_tool), and live in Claude
+  Desktop (asked it to use `echo`, got the input echoed back in chat). See
+  `docs/plan/01-hello-mcp-server.md` for details, including a note on
+  wiring up the Microsoft Store build of Claude Desktop specifically.
+- `requirements.txt` — `fastapi`, `uvicorn[standard]`, `mcp[cli]`.
 
-Nothing here talks to GitHub or implements MCP tools yet. Treat anything
-beyond the health check as **not built**, not as "existing but broken."
+Nothing here talks to GitHub yet — that starts at iteration 2. Treat
+anything beyond "MCP plumbing + health check" as **not built**, not as
+"existing but broken."
 
 ## Planned functionality (not yet implemented)
 
@@ -36,7 +44,10 @@ beyond the health check as **not built**, not as "existing but broken."
 - Python
 - FastAPI (service layer)
 - Uvicorn (ASGI server)
-- MCP tooling — not yet chosen/integrated (see "Open questions" below)
+- Official MCP Python SDK (`mcp[cli]`, v2), stdio transport. Note: v2
+  renamed the high-level server class from `FastMCP` to `MCPServer`
+  (`mcp.server.mcpserver.MCPServer`) — most MCP tutorials online still show
+  the old `FastMCP`/`mcp.server.fastmcp` name, which no longer exists here.
 
 ## Running it locally
 
@@ -77,13 +88,14 @@ current, not be written once and ignored.
 
 ## Open questions / decisions not yet made
 
-- Which MCP server SDK/library to build on (e.g. the official Python MCP
-  SDK) — not chosen yet.
 - How the server authenticates to GitHub (PAT, GitHub App, OAuth) — not
-  decided.
-- Whether the existing FastAPI app is the MCP server's transport layer, or
-  MCP runs alongside/instead of it — not decided.
-- Repo/org scoping and filtering — deferred per the README's roadmap.
+  decided (iteration 5).
+- Whether the existing FastAPI app and the MCP server ever merge into one
+  process, or stay separate for good — not decided (deferred to the
+  packaging iteration, iteration 6). Right now they're just two separate
+  processes.
+- Repo/org scoping and filtering — deferred per the README's roadmap
+  (iteration 4).
 
 ## Repo conventions
 

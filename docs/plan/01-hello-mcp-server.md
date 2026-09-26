@@ -57,3 +57,79 @@ guessing ahead of time.
 - Which transport, and why does that choice make sense for how Copilot will
   eventually launch this server?
 - Does this replace `main.py`'s FastAPI app, wrap it, or run separately?
+
+## Resolved
+
+- **SDK:** the official Python MCP SDK (`mcp[cli]` on PyPI, now at v2 —
+  `pip install "mcp[cli]"`). It's the standard, most-maintained option.
+  One surprise worth flagging: in SDK v2 the high-level server class was
+  renamed from `FastMCP` to `MCPServer` (`mcp.server.mcpserver.MCPServer`)
+  — most tutorials/examples online still reference `FastMCP`/`mcp.server.
+  fastmcp`, which no longer exists in v2. The API itself (`@app.tool()`,
+  `app.run()`) is unchanged.
+- **Transport:** stdio (`app.run()` defaults to it). Local dev hosts launch
+  MCP servers as a subprocess and talk over stdin/stdout — no port/network
+  config needed, and it's what Copilot's own MCP config will expect later.
+- **`main.py`:** left untouched. The server lives in a new `mcp_server.py`
+  at the repo root, run independently. The FastAPI app and the MCP server
+  are two separate processes for now; whether/how they merge is deferred to
+  the packaging iteration.
+
+## What we built
+
+- `mcp_server.py`: an `MCPServer("triage-git-mcp")` with one tool, `echo(text:
+  str) -> str`, returning the input unchanged.
+- `mcp[cli]` added to `requirements.txt`.
+
+## How we verified it
+
+Two levels, both passing:
+
+1. **Headless, scripted check** (fastest signal, no GUI/Node dependency):
+   used `mcp.client.stdio.stdio_client` + `mcp.ClientSession` to spawn
+   `mcp_server.py` as a subprocess, call `list_tools()`, then
+   `call_tool("echo", {"text": "hello mcp"})` — got `echo` listed and the
+   text echoed back correctly.
+2. **Real host — Claude Desktop:** wire it up with either
+   `mcp install mcp_server.py` (the SDK's CLI does this for you), or by
+   hand-editing `claude_desktop_config.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "triage-git-mcp": {
+         "command": "C:\\Users\\004IMY744\\Desktop\\triage-git-mcp\\venv\\Scripts\\python.exe",
+         "args": ["C:\\Users\\004IMY744\\Desktop\\triage-git-mcp\\mcp_server.py"]
+       }
+     }
+   }
+   ```
+
+   Restart Claude Desktop, confirm `triage-git-mcp` shows as connected, and
+   call the `echo` tool from a chat to see the round trip live. (This step
+   needs to be done interactively by whoever has Claude Desktop installed —
+   it can't be scripted/verified headlessly.)
+
+   The SDK also ships `mcp dev mcp_server.py`, which opens the MCP
+   Inspector (a web UI, requires Node/npx) as an alternative way to
+   exercise tools by hand without any host config at all.
+
+## Status: Done
+
+Verified live in Claude Desktop: asked it to use the `echo` tool, and
+`triage-git-mcp: Echo` returned `"hello"` in chat. Full round trip confirmed
+— host discovers the server, calls the tool, gets the result back.
+
+One wrinkle worth recording: this machine's Claude Desktop is the Microsoft
+Store (MSIX) build, so `mcp install` (which only knows the classic installer
+path) couldn't find it. Its config actually lives at:
+
+```
+%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json
+```
+
+Same `mcpServers` schema as the classic config, just a different path — the
+app's own Developer → "Add and manage MCPs" screen opens this same file for
+hand-editing, which is how it was wired up here.
+
+Next: iteration 2, the first real GitHub-backed tool.
