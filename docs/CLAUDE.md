@@ -15,26 +15,30 @@ reason about priority and next steps without a tab switch.
 
 ## Where we are right now
 
-Early-stage / learning project. Iteration 1 (bare-bones MCP plumbing) is
-done:
+Early-stage / learning project. Iterations 1 (MCP plumbing) and 2 (first
+real GitHub-backed tool) are built:
 
 - `main.py` — a FastAPI app with a single `/health` endpoint. Untouched by
   MCP work — runs as a separate process, at least for now.
-- `mcp_server.py` — a minimal MCP server (`mcp.server.mcpserver.MCPServer`)
-  with one tool, `echo`, over stdio transport. Verified two ways: a scripted
-  stdio client (initialize → list_tools → call_tool), and live in Claude
-  Desktop (asked it to use `echo`, got the input echoed back in chat). See
-  `docs/plan/01-hello-mcp-server.md` for details, including a note on
-  wiring up the Microsoft Store build of Claude Desktop specifically.
-- `requirements.txt` — `fastapi`, `uvicorn[standard]`, `mcp[cli]`.
+- `mcp_server.py` — the MCP entry point and composition root. Registers two
+  tools over stdio transport: `echo` (iteration 1's plumbing proof) and
+  `list_my_assigned_issues`. It reads config and wires up a client; it
+  contains no HTTP or parsing logic itself.
+- `triage_git_mcp/` — the MCP-agnostic core. `config.py` (env/`.env`
+  loading + validation), `models.py` (the `AssignedIssue` pydantic model),
+  `github_client.py` (`GitHubIssueClient` over the GitHub REST API).
+  Nothing in this package imports the MCP SDK.
+- `tests/` — pytest unit tests for the client's parsing/request rules and
+  for config validation, using a stub session instead of the network.
+- `requirements.txt` — `fastapi`, `uvicorn[standard]`, `mcp[cli]`,
+  `requests`, `python-dotenv`. `requirements-dev.txt` adds `pytest`.
 
-Nothing here talks to GitHub yet — that starts at iteration 2. Treat
-anything beyond "MCP plumbing + health check" as **not built**, not as
-"existing but broken."
+Iterations 3–6 (richer issue context, filtering, real auth/resilience,
+packaging) are **not built**. Treat them as not started, not as "existing
+but broken."
 
 ## Planned functionality (not yet implemented)
 
-- Fetch issues currently assigned to the user across their repos
 - Pull in detail beyond the title — description, labels, comments, linked PRs
 - Expose this to Copilot as MCP tools, so it's triggered conversationally
 - (Future) scope to specific repos/orgs, filter by label/status, etc.
@@ -44,23 +48,90 @@ anything beyond "MCP plumbing + health check" as **not built**, not as
 - Python
 - FastAPI (service layer)
 - Uvicorn (ASGI server)
-- Official MCP Python SDK (`mcp[cli]`, v2), stdio transport. Note: v2
-  renamed the high-level server class from `FastMCP` to `MCPServer`
-  (`mcp.server.mcpserver.MCPServer`) — most MCP tutorials online still show
-  the old `FastMCP`/`mcp.server.fastmcp` name, which no longer exists here.
+- `requests` (GitHub REST calls), `python-dotenv` (local `.env` loading),
+  `pydantic` (data models; already an MCP SDK dependency)
+- Official MCP Python SDK (`mcp[cli]`, v2), stdio transport.
+
+### MCP SDK v2 gotchas (verified against the installed `mcp==2.2.0`)
+
+Most MCP material online predates v2. Don't copy it blindly:
+
+- **`FastMCP` is gone — it's `MCPServer` now**
+  (`from mcp.server.mcpserver import MCPServer`). Same class, renamed.
+  `mcp/server/fastmcp.py` still exists but is a *tombstone* whose whole body
+  is `raise ModuleNotFoundError(...)` pointing at the migration guide. The
+  only ways to get the old name are pinning `mcp<2` or installing the
+  unrelated third-party `fastmcp` package — neither is worth it, so don't.
+- **Protocol model fields are snake_case**, not the wire format's camelCase:
+  `tool.input_schema` / `tool.output_schema`, not `inputSchema`/`outputSchema`.
+- **Return annotations become the tool's output schema.** Annotating a tool
+  `-> list[AssignedIssue]` gives the host a fully described schema, including
+  each field's `description=`. A bare `-> list[dict]` gives it nothing.
+- **Docstrings are public API.** A tool function's docstring is the
+  description the host's model reads when deciding whether to call it, and a
+  pydantic model's docstring becomes its schema `description`. Write both for
+  that audience; keep internal notes (iteration numbers, TODOs) in `#`
+  comments so they don't leak into the schema.
 
 ## Running it locally
 
 ```bash
 python -m venv venv
 source venv/bin/activate   # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
+The MCP server needs a GitHub token before it will start:
+
 ```bash
+cp .env.example .env       # then paste a classic PAT with 'repo' scope
+```
+
+`.env` is gitignored and must stay that way — never commit a real token.
+A missing or empty `GITHUB_TOKEN` fails at startup with a `ConfigError`
+telling you this, which is intended behaviour, not a bug.
+
+```bash
+python -m pytest tests/    # unit tests, no network needed
+python mcp_server.py       # MCP server (stdio; normally launched by a host)
+uvicorn main:app --reload  # the separate FastAPI health app
 curl http://127.0.0.1:8000/health
 ```
+
+## Design principles
+
+This is a learning project, but the iterations build on each other, so
+today's shortcut becomes tomorrow's refactor. Apply these by default, and
+call out deliberate exceptions rather than making them silently:
+
+- **One reason to change per module (SRP).** HTTP/GitHub concerns live in
+  `github_client.py`, configuration in `config.py`, data shapes in
+  `models.py`, MCP registration in `mcp_server.py`. A tool function should
+  read as a one-line delegation; if it grows logic, that logic belongs in
+  the core package.
+- **Keep the core MCP-agnostic.** Only `mcp_server.py` imports the MCP SDK.
+  That's what keeps the GitHub logic testable without a server, and what
+  would let the same core back a CLI or the FastAPI app later.
+- **Inject collaborators, default them sensibly (DIP).** `GitHubIssueClient`
+  takes its `session`, `api_root` and `timeout` as keyword arguments with
+  working defaults, so tests substitute a stub and iteration 5 can pass a
+  retrying session without editing the class.
+- **Pure core, impure shell.** Parsing and validation are pure and easy to
+  test (`Settings.from_mapping`, `_to_issue`); the things that touch the
+  network, filesystem or `os.environ` sit at the edges (`load_settings`,
+  `_get_json`).
+- **Fail fast with an actionable message.** Misconfiguration raises at
+  startup, saying what to do about it — not a bare `KeyError`, and never a
+  silent empty value that turns into a confusing 401 later.
+- **Let types do real work.** Annotations and pydantic models are what the
+  SDK turns into the schemas a host sees, so precision here is functionality.
+- **Test the logic that isn't I/O.** Field mapping, filtering, query params
+  and config validation get unit tests. Real network round trips and host
+  integration are verified by hand, per iteration.
+- **Simplest thing that satisfies the above.** Don't add an interface,
+  factory, or abstraction layer until a second implementation or a test
+  actually needs it — YAGNI beats speculative generality. Comments should
+  explain *why*, not restate the code.
 
 ## How to work with me on this repo
 
@@ -88,8 +159,9 @@ current, not be written once and ignored.
 
 ## Open questions / decisions not yet made
 
-- How the server authenticates to GitHub (PAT, GitHub App, OAuth) — not
-  decided (iteration 5).
+- Whether a classic PAT stays the auth mechanism (vs GitHub App or OAuth) —
+  iteration 2 uses a PAT from `.env` as the deliberately simplest thing;
+  revisiting is iteration 5's job.
 - Whether the existing FastAPI app and the MCP server ever merge into one
   process, or stay separate for good — not decided (deferred to the
   packaging iteration, iteration 6). Right now they're just two separate
@@ -99,7 +171,8 @@ current, not be written once and ignored.
 
 ## Repo conventions
 
-- `.gitignore` excludes `venv/`, `__pycache__/`, and `.idea/` — keep it that
-  way; don't commit virtualenvs or IDE state.
+- `.gitignore` excludes `venv/`, `__pycache__/`, `.idea/` and `.env` — keep
+  it that way; don't commit virtualenvs, IDE state, or secrets. `.env.example`
+  is committed and must never contain a real token.
 - Work happens on feature branches off `main` (see `add-triage-git-mcp-service`
   for the first one), not directly on `main`.
