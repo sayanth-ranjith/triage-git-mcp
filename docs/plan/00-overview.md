@@ -27,10 +27,10 @@ each step is checkable on its own before the next one adds complexity.
 
 ## Iterations
 
-| # | File | What it's about | Status |
-|---|------|------------------|--------|
-| 1 | [`01-hello-mcp-server.md`](01-hello-mcp-server.md) | Stand up the smallest possible MCP server and connect a host to it | Done |
-| 2 | [`02-fetch-assigned-issues.md`](02-fetch-assigned-issues.md) | First real tool: list issues assigned to you, bare-bones fields | Not started |
+| # | File | What it's about | Status      |
+|---|------|------------------|-------------|
+| 1 | [`01-hello-mcp-server.md`](01-hello-mcp-server.md) | Stand up the smallest possible MCP server and connect a host to it | Done        |
+| 2 | [`02-fetch-assigned-issues.md`](02-fetch-assigned-issues.md) | First real tool: list issues assigned to you, bare-bones fields | In progress |
 | 3 | [`03-enrich-issue-context.md`](03-enrich-issue-context.md) | Add the context that makes this useful — description, labels, comments, linked PRs | Not started |
 | 4 | [`04-filtering-and-scoping.md`](04-filtering-and-scoping.md) | Scope to specific repos/orgs, filter by label/status | Not started |
 | 5 | [`05-auth-and-resilience.md`](05-auth-and-resilience.md) | Move past a raw personal access token, handle rate limits and errors | Not started |
