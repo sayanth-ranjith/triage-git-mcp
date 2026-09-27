@@ -1,6 +1,6 @@
 # triage-git-mcp
 
-An MCP (Model Context Protocol) server that connects GitHub Copilot to your GitHub issues — so you can ask "what's on my plate?" and get a real answer, without leaving your editor.
+An MCP (Model Context Protocol) server that connects agent(Copilot, Claude Code, or if you're weird enough to use vim + a shell script you call "AI.") to your GitHub issues — so you can ask "what's on my plate?" and get a real answer, without leaving your editor.
 
 ## Why this exists
 
