@@ -1,4 +1,4 @@
-# Iteration 3: Enrich issue context
+# Iteration 3: Enrich issue context (In progress)
 
 ## Goal
 
