@@ -11,6 +11,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from triage_git_mcp.priority import Priority, Severity
+
 
 # Note: a model's docstring becomes the `description` in the JSON schema the
 # host sees, so these docstrings are written for that audience. Internal
@@ -28,6 +30,18 @@ class AssignedIssue(BaseModel):
     url: str = Field(description="Link to the issue on github.com.")
     state: str = Field(description="Either 'open' or 'closed'.")
     labels: list[str] = Field(description="Label names applied to the issue.")
+    severity: Severity | None = Field(
+        description=(
+            "The sev1-sev4 marking found on the issue (a label, or a ticked "
+            "checkbox in the description), or null if it has none."
+        )
+    )
+    priority: Priority = Field(
+        description=(
+            "Triage priority: sev1=critical, sev2=high, sev3=medium, sev4=low. "
+            "'medium' when severity is null, meaning a default, not a stated priority."
+        )
+    )
     updated_at: datetime = Field(description="When the issue last changed.")
     comment_count: int = Field(description="Total number of comments on the issue.")
     body_preview: str = Field(
@@ -73,6 +87,18 @@ class IssueDetail(BaseModel):
     author: str = Field(description="GitHub login of whoever opened the issue.")
     assignees: list[str] = Field(description="GitHub logins of everyone assigned.")
     labels: list[str] = Field(description="Label names applied to the issue.")
+    severity: Severity | None = Field(
+        description=(
+            "The sev1-sev4 marking found on the issue (a label, or a ticked "
+            "checkbox in the description), or null if it has none."
+        )
+    )
+    priority: Priority = Field(
+        description=(
+            "Triage priority: sev1=critical, sev2=high, sev3=medium, sev4=low. "
+            "'medium' when severity is null, meaning a default, not a stated priority."
+        )
+    )
     milestone: str | None = Field(description="Milestone title, if any.")
     created_at: datetime = Field(description="When the issue was opened.")
     updated_at: datetime = Field(description="When the issue last changed.")
