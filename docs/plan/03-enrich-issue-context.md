@@ -1,4 +1,4 @@
-# Iteration 3: Enrich issue context (In progress)
+# Iteration 3: Enrich issue context
 
 ## Goal
 
@@ -58,3 +58,25 @@ section.
 - How do we cap comment volume on issues with long discussion threads?
 - Do linked PRs need their own status (open/merged/draft) included, or just
   a link?
+
+## Decisions made
+
+Implemented following the proposal in [`../next-iteration.md`](../next-iteration.md).
+What changed, file by file, is in [`../iteration-3-changes.md`](../iteration-3-changes.md).
+
+| Question | Decision |
+|---|---|
+| One call, or summary + detail? | **Summary + detail.** `list_my_assigned_issues` stays at one GitHub request and gains labels, number, `updated_at`, comment count and a 300-char body preview. New `get_issue_details(repo, number, max_comments=10)` fetches the rest on demand. |
+| Capping comment volume | Newest **10** by default (host can ask for 0–100), each truncated to 1,000 chars, plus `comment_count` so the host knows more exist. Fetched by jumping to the last page rather than walking the thread. |
+| Linked PRs: status or link? | **Status** (`open` / `draft` / `merged` / `closed`), read from the issue timeline's `cross-referenced` events — no extra request per PR. |
+| Tool or resource? | **Tool.** Resources are chosen by the host/user; tools can be called by the model itself, and choosing which issue to dig into is the model's call. |
+| REST or GraphQL? | **REST.** Detail costs 3 requests (4 if recent comments cross a page boundary). |
+| `echo` tool | **Removed** — real tools now prove the plumbing. |
+
+## Status: Implemented, pending live verification
+
+- [x] Unit tests (29 passing) cover field mapping, truncation, comment
+      paging, PR status, PR de-duplication and repo validation.
+- [x] Server registers both tools with typed input/output schemas.
+- [ ] With a real token: ask "what's on my plate?" and "tell me more about
+      #N", and check both answers against github.com.

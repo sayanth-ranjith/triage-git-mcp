@@ -15,17 +15,19 @@ reason about priority and next steps without a tab switch.
 
 ## Where we are right now
 
-Early-stage / learning project. Iterations 1 (MCP plumbing) and 2 (first
-real GitHub-backed tool) are built:
+Early-stage / learning project. Iterations 1 (MCP plumbing), 2 (first
+real GitHub-backed tool) and 3 (richer issue context) are built:
 
 - `main.py` — a FastAPI app with a single `/health` endpoint. Untouched by
   MCP work — runs as a separate process, at least for now.
 - `mcp_server.py` — the MCP entry point and composition root. Registers two
-  tools over stdio transport: `echo` (iteration 1's plumbing proof) and
-  `list_my_assigned_issues`. It reads config and wires up a client; it
+  tools over stdio transport: `list_my_assigned_issues` (cheap summary of
+  every assigned issue) and `get_issue_details` (full body, recent comments
+  and linked PRs for one issue). It reads config and wires up a client; it
   contains no HTTP or parsing logic itself.
 - `triage_git_mcp/` — the MCP-agnostic core. `config.py` (env/`.env`
-  loading + validation), `models.py` (the `AssignedIssue` pydantic model),
+  loading + validation), `models.py` (`AssignedIssue`, `IssueDetail`,
+  `IssueComment`, `LinkedPullRequest` pydantic models),
   `github_client.py` (`GitHubIssueClient` over the GitHub REST API).
   Nothing in this package imports the MCP SDK.
 - `tests/` — pytest unit tests for the client's parsing/request rules and
@@ -33,14 +35,11 @@ real GitHub-backed tool) are built:
 - `requirements.txt` — `fastapi`, `uvicorn[standard]`, `mcp[cli]`,
   `requests`, `python-dotenv`. `requirements-dev.txt` adds `pytest`.
 
-Iterations 3–6 (richer issue context, filtering, real auth/resilience,
-packaging) are **not built**. Treat them as not started, not as "existing
-but broken."
+Iterations 4–6 (filtering, real auth/resilience, packaging) are **not
+built**. Treat them as not started, not as "existing but broken."
 
 ## Planned functionality (not yet implemented)
 
-- Pull in detail beyond the title — description, labels, comments, linked PRs
-- Expose this to Copilot as MCP tools, so it's triggered conversationally
 - (Future) scope to specific repos/orgs, filter by label/status, etc.
 
 ## Tech stack
