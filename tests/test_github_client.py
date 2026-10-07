@@ -11,13 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from triage_git_mcp.github_client import (
-    BODY_PREVIEW_CHARS,
-    MAX_BODY_CHARS,
-    MAX_PER_PAGE,
-    TRUNCATION_MARKER,
-    GitHubIssueClient,
-)
+from triage_git_mcp.github_client import MAX_PER_PAGE, GitHubIssueClient
+from triage_git_mcp.github_mapping import BODY_PREVIEW_CHARS, MAX_BODY_CHARS, TRUNCATION_MARKER
 
 
 class _StubResponse:
@@ -253,10 +248,13 @@ def test_rejects_repo_and_org_together_before_any_request():
     assert session.calls == []
 
 
-@pytest.mark.parametrize(("scope", "match"), [
-    ({"repo": "widgets"}, "owner/name"),
-    ({"org": "acme/widgets"}, "organization"),
-])
+@pytest.mark.parametrize(
+    ("scope", "match"),
+    [
+        ({"repo": "widgets"}, "owner/name"),
+        ({"org": "acme/widgets"}, "organization"),
+    ],
+)
 def test_rejects_malformed_scope_before_any_request(scope, match):
     session = _StubSession([])
 
@@ -267,10 +265,12 @@ def test_rejects_malformed_scope_before_any_request(scope, match):
 
 
 def test_summary_carries_severity_and_priority():
-    session = _StubSession([
-        _api_issue(number=1, labels=[{"name": "sev2"}]),
-        _api_issue(number=2, labels=[]),
-    ])
+    session = _StubSession(
+        [
+            _api_issue(number=1, labels=[{"name": "sev2"}]),
+            _api_issue(number=2, labels=[]),
+        ]
+    )
 
     first, second = _client(session).list_assigned_issues()
 
@@ -290,12 +290,14 @@ def test_severity_past_the_preview_cut_is_still_found():
 
 
 def test_priority_filter_keeps_only_matching_issues():
-    session = _StubSession([
-        _api_issue(number=1, labels=[{"name": "sev1"}]),
-        _api_issue(number=2, labels=[{"name": "sev2"}]),
-        _api_issue(number=3, labels=[]),  # defaults to medium
-        _api_issue(number=4, labels=[{"name": "sev4"}]),
-    ])
+    session = _StubSession(
+        [
+            _api_issue(number=1, labels=[{"name": "sev1"}]),
+            _api_issue(number=2, labels=[{"name": "sev2"}]),
+            _api_issue(number=3, labels=[]),  # defaults to medium
+            _api_issue(number=4, labels=[{"name": "sev4"}]),
+        ]
+    )
 
     issues = _client(session).list_assigned_issues(priority=["critical", "high"])
 
@@ -412,9 +414,7 @@ def test_recent_comments_span_a_page_boundary():
 
     detail = _client(session).get_issue_details("acme/widgets", 7, comment_limit=5)
 
-    assert [c.body for c in detail.recent_comments] == [
-        f"comment {n}" for n in range(98, 103)
-    ]
+    assert [c.body for c in detail.recent_comments] == [f"comment {n}" for n in range(98, 103)]
     pages = [c["params"]["page"] for c in session.calls if c["url"].endswith("/comments")]
     assert pages == [2, 1]
 
