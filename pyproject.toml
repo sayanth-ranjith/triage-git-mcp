@@ -1,0 +1,24 @@
+# Tool configuration only — this isn't a packaged distribution (yet; that's
+# iteration 6). Run `ruff check .` and `ruff format .` before committing.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes: unused imports/variables, undefined names
+    "I",    # import sorting
+    "UP",   # pyupgrade: modern syntax for the target version
+    "B",    # bugbear: likely bugs and design problems
+    "SIM",  # simplifications
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["triage_git_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
