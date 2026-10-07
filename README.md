@@ -8,36 +8,60 @@ Checking assigned issues usually means switching to a browser, hunting through f
 
 The goal isn't just a list of titles. It's enough context that Copilot (and you) can actually reason about priority and next steps without a tab switch.
 
-## What it does (planned)
+## What it does
 
-- Fetches issues currently assigned to you across your repos
-- Pulls in the detail that matters — description, labels, comments, linked PRs — not just the title
-- Exposes this to Copilot as MCP tools, so it can be triggered conversationally
-- (Future) Supports scoping to specific repos/orgs, filtering by label or status, etc.
+Two MCP tools, both read-only:
+
+- **`list_my_assigned_issues`** — your assigned issues across every repo
+  you can see, open only by default. Each comes with labels, a priority,
+  last update, comment count and the start of its description — enough to
+  rank them. Filter by `repo` or `org`, `labels`, `state`
+  (`open`/`closed`/`all`), `updated_since` and `priority`.
+- **`get_issue_details`** — everything about one issue: full description,
+  the most recent comments, and linked pull requests with their status
+  (open, draft, merged, closed).
+
+Priority comes from a `sev1`–`sev4` label or a ticked sev checkbox in the
+issue body (sev1 = critical … sev4 = low); issues without one count as
+medium.
 
 ## Status
 
-Early-stage / learning project. Core flow and tool design are still being figured out.
+Learning project, built in iterations — see [`docs/plan/`](docs/plan/00-overview.md).
+Iterations 1–4 (MCP plumbing, assigned issues, rich context, filtering) are
+built. Auth/rate-limit hardening and packaging are next.
 
 ## Tech stack
 
-- Python
-- [FastAPI](https://fastapi.tiangolo.com/) for the service layer
-- [Uvicorn](https://www.uvicorn.org/) as the ASGI server
+- Python 3.11+
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) (v2), stdio transport
+- `requests` for the GitHub REST API, `pydantic` for the data models
+- [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) for a separate `/health` service
 
 ## Getting started
 
 ```bash
 python -m venv venv
-source venv/bin/activate   # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+source venv/bin/activate   # On Windows: venv\Scriptsctivate
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env       # then paste a classic GitHub PAT with 'repo' scope
 ```
 
-Once running, check the service is up:
+Try the MCP server from the terminal — this launches it the way a host
+would and calls its tools:
 
 ```bash
-curl http://127.0.0.1:8000/health
+python scripts/try_mcp.py                  # list tools + your open issues
+python scripts/try_mcp.py owner/repo 12    # also fetch one issue's details
 ```
 
-This currently just scaffolds the FastAPI app with a `/health` endpoint — the MCP tools and GitHub issue-fetching logic described above are still to come.
+To use it from a host (Claude Code, Copilot, …), register it as a stdio
+server whose command is your venv's `python` and whose argument is the path
+to `mcp_server.py`.
+
+## Development
+
+```bash
+python -m pytest           # unit tests, no network needed
+ruff check . && ruff format --check .
+```
