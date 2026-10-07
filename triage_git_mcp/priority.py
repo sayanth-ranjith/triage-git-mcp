@@ -17,12 +17,16 @@ Priority = Literal["critical", "high", "medium", "low"]
 
 DEFAULT_PRIORITY: Priority = "medium"
 
-PRIORITY_BY_SEVERITY: dict[str, Priority] = {
+PRIORITY_BY_SEVERITY: dict[Severity, Priority] = {
     "sev1": "critical",
     "sev2": "high",
     "sev3": "medium",
     "sev4": "low",
 }
+
+# Labels and checkbox text arrive as plain strings in any case; this turns
+# one back into a typed Severity without a cast.
+_SEVERITY_BY_NAME: dict[str, Severity] = {severity: severity for severity in PRIORITY_BY_SEVERITY}
 
 # A ticked markdown task-list item: "- [x] sev1". The form lists all four
 # options in every body, so an unticked "- [ ] sev2" must not match.
@@ -32,10 +36,10 @@ _TICKED_SEVERITY = re.compile(r"^\s*[-*]\s+\[[xX]\]\s+(sev[1-4])\b", re.MULTILIN
 def find_severity(labels: list[str], body: str | None) -> Severity | None:
     """Return the issue's severity, preferring a label over the body."""
     for label in labels:
-        if label.lower() in PRIORITY_BY_SEVERITY:
-            return label.lower()  # type: ignore[return-value]
+        if severity := _SEVERITY_BY_NAME.get(label.lower()):
+            return severity
     match = _TICKED_SEVERITY.search(body or "")
-    return match.group(1).lower() if match else None  # type: ignore[return-value]
+    return _SEVERITY_BY_NAME[match.group(1).lower()] if match else None
 
 
 def priority_for(severity: Severity | None) -> Priority:
