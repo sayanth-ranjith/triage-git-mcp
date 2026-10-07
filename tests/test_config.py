@@ -4,6 +4,8 @@ These exercise `Settings.from_mapping`, the pure half of `config`, so they
 never read the real environment or the developer's `.env`.
 """
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from triage_git_mcp.config import ConfigError, Settings
@@ -37,5 +39,5 @@ def test_missing_token_raises_an_actionable_error(env):
 def test_settings_are_immutable():
     settings = Settings.from_mapping({"GITHUB_TOKEN": "ghp_example"})
 
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         settings.github_token = "something else"  # type: ignore[misc]

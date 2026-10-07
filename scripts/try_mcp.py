@@ -31,23 +31,18 @@ async def main(repo: str | None, number: int | None) -> None:
         args=[str(REPO_ROOT / "mcp_server.py")],
         cwd=str(REPO_ROOT),  # so the server finds .env
     )
-    async with stdio_client(server) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
+    async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
 
-            tools = await session.list_tools()
-            print("Tools:", [tool.name for tool in tools.tools])
+        tools = await session.list_tools()
+        print("Tools:", [tool.name for tool in tools.tools])
 
-            print("\n=== list_my_assigned_issues ===")
-            _show(await session.call_tool("list_my_assigned_issues", {}))
+        print("\n=== list_my_assigned_issues ===")
+        _show(await session.call_tool("list_my_assigned_issues", {}))
 
-            if repo:
-                print(f"\n=== get_issue_details {repo}#{number} ===")
-                _show(
-                    await session.call_tool(
-                        "get_issue_details", {"repo": repo, "number": number}
-                    )
-                )
+        if repo:
+            print(f"\n=== get_issue_details {repo}#{number} ===")
+            _show(await session.call_tool("get_issue_details", {"repo": repo, "number": number}))
 
 
 if __name__ == "__main__":
