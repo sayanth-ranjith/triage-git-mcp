@@ -30,14 +30,19 @@ scoping) are built:
 - `triage_git_mcp/` — the MCP-agnostic core. `config.py` (env/`.env`
   loading + validation), `models.py` (`AssignedIssue`, `IssueDetail`,
   `IssueComment`, `LinkedPullRequest` pydantic models),
-  `github_client.py` (`GitHubIssueClient` over the GitHub REST API),
+  `github_client.py` (`GitHubIssueClient`: which GitHub endpoint to call,
+  with which params, and paging), `github_mapping.py` (pure GitHub JSON →
+  model translation, plus truncation caps),
   `priority.py` (sev1–sev4 label or ticked checkbox → priority, default
   `medium`).
   Nothing in this package imports the MCP SDK.
-- `tests/` — pytest unit tests for the client's parsing/request rules and
-  for config validation, using a stub session instead of the network.
+- `tests/` — pytest unit tests for the client's parsing/request rules,
+  priority rules and config validation, using a stub session instead of
+  the network; `test_mcp_server.py` checks what a host sees (error text,
+  read-only annotations).
 - `requirements.txt` — `fastapi`, `uvicorn[standard]`, `mcp[cli]`,
-  `requests`, `python-dotenv`. `requirements-dev.txt` adds `pytest`.
+  `requests`, `python-dotenv`. `requirements-dev.txt` adds `pytest` and
+  `ruff` (configured in `pyproject.toml`).
 
 Iterations 5–6 (real auth/resilience, packaging) are **not built**. Treat them as not started, not as "existing but broken."
 
@@ -70,6 +75,9 @@ Most MCP material online predates v2. Don't copy it blindly:
 - **Return annotations become the tool's output schema.** Annotating a tool
   `-> list[AssignedIssue]` gives the host a fully described schema, including
   each field's `description=`. A bare `-> list[dict]` gives it nothing.
+- **Only `ToolError` text reaches the host.** Any other exception from a
+  tool arrives as a bare `Error executing tool <name>`. Annotation fields
+  are snake_case too: `ToolAnnotations(read_only_hint=True)`.
 - **Docstrings are public API.** A tool function's docstring is the
   description the host's model reads when deciding whether to call it, and a
   pydantic model's docstring becomes its schema `description`. Write both for
@@ -96,6 +104,7 @@ telling you this, which is intended behaviour, not a bug.
 
 ```bash
 python -m pytest tests/    # unit tests, no network needed
+ruff check . && ruff format --check .   # lint + format, config in pyproject.toml
 python mcp_server.py       # MCP server (stdio; normally launched by a host)
 uvicorn main:app --reload  # the separate FastAPI health app
 curl http://127.0.0.1:8000/health
@@ -125,7 +134,9 @@ call out deliberate exceptions rather than making them silently:
   `_get_json`).
 - **Fail fast with an actionable message.** Misconfiguration raises at
   startup, saying what to do about it — not a bare `KeyError`, and never a
-  silent empty value that turns into a confusing 401 later.
+  silent empty value that turns into a confusing 401 later. Bad tool input
+  raises `ValueError` in the core; `mcp_server.py` re-raises it as the SDK's
+  `ToolError`, the only exception whose text the SDK passes to the host.
 - **Let types do real work.** Annotations and pydantic models are what the
   SDK turns into the schemas a host sees, so precision here is functionality.
 - **Test the logic that isn't I/O.** Field mapping, filtering, query params
