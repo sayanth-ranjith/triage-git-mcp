@@ -2,3 +2,4 @@
 #   pip install -r requirements.txt -r requirements-dev.txt
 pytest
 ruff
+anthropic  # scripts/ask.py only; the server doesn't need it
