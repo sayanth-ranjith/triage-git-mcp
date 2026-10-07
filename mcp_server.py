@@ -6,17 +6,21 @@ purpose: the work they'd otherwise do inline (HTTP, auth, parsing) lives in
 `triage_git_mcp`, where it can be tested without a server.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import datetime
+
 # MCP SDK v2 renamed the high-level server class from FastMCP to MCPServer.
 # Most tutorials online still show `from mcp.server.fastmcp import FastMCP`;
 # under v2 that module is a tombstone that raises ModuleNotFoundError with a
 # pointer to the migration guide. MCPServer *is* FastMCP, renamed.
-from datetime import datetime
-
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 from triage_git_mcp.config import load_settings
-from triage_git_mcp.github_client import DEFAULT_COMMENT_LIMIT, GitHubIssueClient, IssueState
-from triage_git_mcp.models import AssignedIssue, IssueDetail
+from triage_git_mcp.github_client import DEFAULT_COMMENT_LIMIT, GitHubIssueClient
+from triage_git_mcp.models import AssignedIssue, IssueDetail, IssueStateFilter
 from triage_git_mcp.priority import Priority
 
 # Resolved once at startup, so a misconfigured token fails immediately with
@@ -26,20 +30,37 @@ _github = GitHubIssueClient(_settings.github_token)
 
 app = MCPServer("triage-git-mcp")
 
+# Both tools only read, and both reach out to GitHub. Telling the host lets
+# it call them without asking the user to confirm a side effect.
+_READ_ONLY_GITHUB = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
-# Issue detail is a tool rather than an MCP resource: resources are picked by
-# the host or user, while tools can be called by the model on its own — and
-# "dig into the issue that looks most urgent" is the model's decision to make.
+
+@contextmanager
+def _bad_input_reported_to_host() -> Iterator[None]:
+    """Pass the core's input-validation messages through to the host's model.
+
+    The SDK withholds the text of any exception other than `ToolError`, so a
+    `ValueError` like "pass repo or org, not both" would otherwise reach the
+    model as a bare "Error executing tool". The core raises plain
+    `ValueError` because it doesn't know about MCP; translating is this
+    module's job.
+    """
+    try:
+        yield
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+
+
 # One tool with optional filters, rather than one tool per filter: near-
 # identical tools make it harder for the host's model to pick the right one.
 # The Literal annotations become enums in the input schema, so the host sees
 # exactly which values are allowed.
-@app.tool()
+@app.tool(annotations=_READ_ONLY_GITHUB)
 def list_my_assigned_issues(
     repo: str | None = None,
     org: str | None = None,
     labels: list[str] | None = None,
-    state: IssueState = "open",
+    state: IssueStateFilter = "open",
     updated_since: datetime | None = None,
     priority: list[Priority] | None = None,
 ) -> list[AssignedIssue]:
@@ -64,17 +85,21 @@ def list_my_assigned_issues(
             from a sev1-sev4 label or ticked checkbox; issues without one
             count as 'medium'. For "high priority" use ['critical', 'high'].
     """
-    return _github.list_assigned_issues(
-        repo=repo,
-        org=org,
-        labels=labels,
-        state=state,
-        updated_since=updated_since,
-        priority=priority,
-    )
+    with _bad_input_reported_to_host():
+        return _github.list_assigned_issues(
+            repo=repo,
+            org=org,
+            labels=labels,
+            state=state,
+            updated_since=updated_since,
+            priority=priority,
+        )
 
 
-@app.tool()
+# Issue detail is a tool rather than an MCP resource: resources are picked by
+# the host or user, while tools can be called by the model on its own — and
+# "dig into the issue that looks most urgent" is the model's decision to make.
+@app.tool(annotations=_READ_ONLY_GITHUB)
 def get_issue_details(
     repo: str, number: int, max_comments: int = DEFAULT_COMMENT_LIMIT
 ) -> IssueDetail:
@@ -89,7 +114,8 @@ def get_issue_details(
         number: The issue number within that repository.
         max_comments: How many of the most recent comments to include (0-100).
     """
-    return _github.get_issue_details(repo, number, comment_limit=max_comments)
+    with _bad_input_reported_to_host():
+        return _github.get_issue_details(repo, number, comment_limit=max_comments)
 
 
 if __name__ == "__main__":
